@@ -9,7 +9,7 @@ pinned: false
 
 # DBLP BibTeX 快速查询
 
-一个轻量网页工具：输入论文标题，调用 DBLP API 进行模糊匹配，点击结果后直接查看纯文本 BibTeX。
+一个轻量网页工具：输入论文标题，通过本地代理调用 DBLP API 进行模糊匹配，点击结果后直接查看纯文本 BibTeX。
 
 ## 功能
 
@@ -23,13 +23,14 @@ pinned: false
 - `index.html`：页面结构
 - `styles.css`：样式
 - `app.js`：搜索、匹配、BibTeX 获取逻辑
+- `server.py`：静态文件服务和 DBLP 代理接口
 
 ## 运行方式（推荐 `uv`）
 
 在项目目录执行：
 
 ```bash
-uv run python -m http.server 8000
+PORT=8000 uv run python server.py
 ```
 
 浏览器打开：
@@ -39,7 +40,7 @@ uv run python -m http.server 8000
 ## 不用 uv 的方式
 
 ```bash
-python3 -m http.server 8000
+PORT=8000 python3 server.py
 ```
 
 ## Docker 运行
@@ -79,17 +80,19 @@ docker run --rm -p 8000:7860 dblp-bibtex:latest
 ## 常见问题
 
 - 为什么不能直接双击 `index.html` 打开？
-  - 直接用 `file://` 打开时，浏览器可能拦截跨域请求。请用本地 HTTP 服务（上面的 `uv` 或 `python3` 命令）。
+  - 直接用 `file://` 打开时，浏览器无法访问本地代理接口，也无法稳定跨域请求 DBLP。请用 `server.py` 启动。
 
 - 搜索失败怎么办？
   - 先检查网络。
   - 尝试精简关键词（去掉副标题或特殊符号）。
   - DBLP 接口偶发超时可重试。
+  - 如果报 `search upstream failed` 或 `bib upstream failed`，说明是服务端访问 DBLP 失败，不再是浏览器跨域问题。
 
 ## API 说明
 
 - 搜索接口：`https://dblp.org/search/publ/api?q=<query>&h=20&format=json`
 - BibTeX 接口：`https://dblp.org/rec/<key>.bib`（或搜索结果中的 `url + .bib`）
+- 本项目代理接口：`/api/search?q=<query>&h=20` 和 `/api/bib?url=<bib_url>`
 
 ## 开源协议
 

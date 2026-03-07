@@ -108,12 +108,13 @@ async function searchByTitle() {
   copyBtn.disabled = true;
   currentBibtex = "";
 
-  const url = `https://dblp.org/search/publ/api?q=${encodeURIComponent(query)}&h=${MAX_RESULTS}&format=json`;
+  const url = `/api/search?q=${encodeURIComponent(query)}&h=${MAX_RESULTS}`;
 
   try {
     const response = await fetch(url);
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+      const err = await response.json().catch(() => null);
+      throw new Error(err?.error || `HTTP ${response.status}`);
     }
 
     const data = await response.json();
@@ -128,7 +129,7 @@ async function searchByTitle() {
       setStatus("没有搜索到结果，请调整关键词。", true);
     }
   } catch (error) {
-    setStatus(`搜索失败：${error.message}。可能是网络或跨域限制。`, true);
+    setStatus(`搜索失败：${error.message}`, true);
   }
 }
 
@@ -149,9 +150,10 @@ async function selectResult(index) {
   setStatus("正在获取 BibTeX...");
 
   try {
-    const response = await fetch(bibtexUrl);
+    const response = await fetch(`/api/bib?url=${encodeURIComponent(bibtexUrl)}`);
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+      const err = await response.json().catch(() => null);
+      throw new Error(err?.error || `HTTP ${response.status}`);
     }
 
     const text = await response.text();
