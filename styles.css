@@ -1,0 +1,152 @@
+:root {
+  --bg: #f5f7fb;
+  --card: #ffffff;
+  --text: #1f2937;
+  --muted: #6b7280;
+  --border: #d1d5db;
+  --primary: #0f766e;
+  --primary-dark: #115e59;
+  --selected: #ecfeff;
+  --danger: #991b1b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+  background: linear-gradient(160deg, #f0fdfa, var(--bg) 45%, #eff6ff);
+  color: var(--text);
+}
+
+.container {
+  max-width: 980px;
+  margin: 32px auto;
+  padding: 0 16px 32px;
+}
+
+h1,
+h2 {
+  margin: 0;
+}
+
+header p {
+  margin: 10px 0 0;
+  color: var(--muted);
+}
+
+.search-panel,
+.results,
+.bibtex {
+  margin-top: 18px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.search-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+input[type="text"] {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 14px;
+}
+
+button {
+  border: none;
+  border-radius: 10px;
+  padding: 10px 14px;
+  background: var(--primary);
+  color: #fff;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+button:hover {
+  background: var(--primary-dark);
+}
+
+button[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+small {
+  display: block;
+  margin-top: 8px;
+  color: var(--muted);
+}
+
+.result-list {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.result-item {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  margin-top: 10px;
+  cursor: pointer;
+}
+
+.result-item:hover {
+  border-color: var(--primary);
+}
+
+.result-item.selected {
+  background: var(--selected);
+  border-color: var(--primary);
+}
+
+.result-title {
+  font-weight: 600;
+}
+
+.result-meta {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.bibtex-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+pre {
+  margin: 12px 0 0;
+  border: 1px solid var(--border);
+  background: #0b1020;
+  color: #d1fae5;
+  border-radius: 10px;
+  padding: 14px;
+  min-height: 180px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.error {
+  color: var(--danger);
+}
+
+@media (max-width: 700px) {
+  .search-row {
+    flex-direction: column;
+  }
+
+  button {
+    width: 100%;
+  }
+}

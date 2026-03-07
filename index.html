@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DBLP BibTeX 快速查询</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="container">
+      <header>
+        <h1>DBLP BibTeX 快速查询</h1>
+        <p>输入论文题目，模糊匹配后直接查看纯文本 BibTeX。</p>
+      </header>
+
+      <section class="search-panel" aria-label="搜索面板">
+        <label for="titleInput">论文题目</label>
+        <div class="search-row">
+          <input
+            id="titleInput"
+            type="text"
+            placeholder="例如：Attention Is All You Need"
+            autocomplete="off"
+          />
+          <button id="searchBtn" type="button">搜索</button>
+        </div>
+        <small>默认返回前 20 条候选，可在候选列表中选择目标论文。</small>
+      </section>
+
+      <section class="results" aria-label="搜索结果">
+        <h2>候选论文</h2>
+        <ul id="resultList" class="result-list"></ul>
+      </section>
+
+      <section class="bibtex" aria-label="BibTeX 展示">
+        <div class="bibtex-head">
+          <h2>BibTeX</h2>
+          <button id="copyBtn" type="button" disabled>复制</button>
+        </div>
+        <pre id="bibtexOutput">请先搜索并选择论文。</pre>
+      </section>
+    </main>
+
+    <script src="app.js" defer></script>
+  </body>
+</html>
