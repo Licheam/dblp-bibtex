@@ -33,6 +33,33 @@ uv run python -m http.server 8000
 python3 -m http.server 8000
 ```
 
+## Docker 运行
+
+构建镜像：
+
+```bash
+docker build -t dblp-bibtex:latest .
+```
+
+启动容器：
+
+```bash
+docker run --rm -p 8000:7860 dblp-bibtex:latest
+```
+
+浏览器打开：
+
+- <http://localhost:8000>
+
+## Hugging Face 部署（Docker Space）
+
+1. 在 Hugging Face 新建一个 Space，`SDK` 选择 `Docker`。
+2. 把当前仓库代码推送到该 Space 对应仓库（至少包含 `index.html`、`styles.css`、`app.js`、`Dockerfile`）。
+3. 本项目 `Dockerfile` 已监听 `0.0.0.0:7860`，可直接被 Hugging Face Space 识别。
+4. 等待构建完成后，打开 Space 页面即可在线使用。
+
+如果你是本地先验证 Docker 镜像，可先执行上面的 `docker build` + `docker run`。
+
 ## 使用步骤
 
 1. 输入论文标题（例如 `Attention Is All You Need`）
