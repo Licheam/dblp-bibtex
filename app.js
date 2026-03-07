@@ -2,6 +2,8 @@ const titleInput = document.getElementById("titleInput");
 const searchBtn = document.getElementById("searchBtn");
 const retryBtn = document.getElementById("retryBtn");
 const retryStatus = document.getElementById("retryStatus");
+const retryBibBtn = document.getElementById("retryBibBtn");
+const retryBibStatus = document.getElementById("retryBibStatus");
 const resultList = document.getElementById("resultList");
 const bibtexOutput = document.getElementById("bibtexOutput");
 const copyBtn = document.getElementById("copyBtn");
@@ -12,17 +14,29 @@ let currentResults = [];
 
 const MAX_RESULTS = 20;
 const RETRY_INTERVAL_MS = 2000;
+const BIB_RETRY_INTERVAL_MS = 2000;
 
 let retryTimer = null;
 let retryAttempt = 0;
 let retryRunning = false;
+let bibRetryTimer = null;
+let bibRetryAttempt = 0;
+let bibRetryRunning = false;
 
 function setRetryStatus(text) {
   retryStatus.textContent = text;
 }
 
+function setRetryBibStatus(text) {
+  retryBibStatus.textContent = text;
+}
+
 function updateRetryButton() {
   retryBtn.textContent = retryRunning ? "停止循环" : "循环搜索";
+}
+
+function updateRetryBibButton() {
+  retryBibBtn.textContent = bibRetryRunning ? "停止获取BibTeX" : "循环获取BibTeX";
 }
 
 function stopRetryLoop(message = "") {
@@ -34,6 +48,17 @@ function stopRetryLoop(message = "") {
   retryAttempt = 0;
   updateRetryButton();
   setRetryStatus(message);
+}
+
+function stopBibRetryLoop(message = "") {
+  if (bibRetryTimer) {
+    clearTimeout(bibRetryTimer);
+    bibRetryTimer = null;
+  }
+  bibRetryRunning = false;
+  bibRetryAttempt = 0;
+  updateRetryBibButton();
+  setRetryBibStatus(message);
 }
 
 function normalizeText(text) {
@@ -130,6 +155,7 @@ async function searchByTitle() {
     return false;
   }
 
+  stopBibRetryLoop("");
   setStatus("正在搜索候选论文...");
   copyBtn.disabled = true;
   currentBibtex = "";
@@ -201,17 +227,21 @@ function toggleRetryLoop() {
 }
 
 async function selectResult(index) {
+  stopBibRetryLoop("");
   selectedIndex = index;
   [...resultList.children].forEach((el, idx) => {
     el.classList.toggle("selected", idx === index);
   });
 
   const info = currentResults[index]?.info;
-  const bibtexUrl = getBibtexUrl(info);
+  await fetchBibtexForInfo(info);
+}
 
+async function fetchBibtexForInfo(info) {
+  const bibtexUrl = getBibtexUrl(info);
   if (!bibtexUrl) {
     setStatus("未找到该条目的 BibTeX 地址。", true);
-    return;
+    return false;
   }
 
   setStatus("正在获取 BibTeX...");
@@ -227,10 +257,56 @@ async function selectResult(index) {
     currentBibtex = text.trim();
     setStatus(currentBibtex || "返回为空。", false);
     copyBtn.disabled = !currentBibtex;
+    return Boolean(currentBibtex);
   } catch (error) {
     setStatus(`获取 BibTeX 失败：${error.message}`, true);
     copyBtn.disabled = true;
+    return false;
   }
+}
+
+async function runBibRetryFetch() {
+  if (!bibRetryRunning) {
+    return;
+  }
+
+  const info = currentResults[selectedIndex]?.info;
+  if (!info) {
+    stopBibRetryLoop("请先在候选列表中选择论文。");
+    return;
+  }
+
+  bibRetryAttempt += 1;
+  setRetryBibStatus(`循环获取中：第 ${bibRetryAttempt} 次尝试，间隔 ${BIB_RETRY_INTERVAL_MS / 1000} 秒。`);
+
+  const success = await fetchBibtexForInfo(info);
+  if (!bibRetryRunning) {
+    return;
+  }
+
+  if (success) {
+    stopBibRetryLoop(`BibTeX 获取成功（第 ${bibRetryAttempt} 次尝试）。`);
+    return;
+  }
+
+  bibRetryTimer = setTimeout(runBibRetryFetch, BIB_RETRY_INTERVAL_MS);
+}
+
+function toggleBibRetryLoop() {
+  if (bibRetryRunning) {
+    stopBibRetryLoop("循环获取已停止。");
+    return;
+  }
+
+  if (selectedIndex < 0 || !currentResults[selectedIndex]) {
+    setStatus("请先在候选列表中选择论文。", true);
+    return;
+  }
+
+  bibRetryRunning = true;
+  bibRetryAttempt = 0;
+  updateRetryBibButton();
+  runBibRetryFetch();
 }
 
 async function copyBibtex() {
@@ -250,6 +326,7 @@ async function copyBibtex() {
 
 searchBtn.addEventListener("click", searchByTitle);
 retryBtn.addEventListener("click", toggleRetryLoop);
+retryBibBtn.addEventListener("click", toggleBibRetryLoop);
 titleInput.addEventListener("keydown", (event) => {
   if (event.key === "Enter") {
     searchByTitle();
@@ -257,3 +334,4 @@ titleInput.addEventListener("keydown", (event) => {
 });
 copyBtn.addEventListener("click", copyBibtex);
 updateRetryButton();
+updateRetryBibButton();

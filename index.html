@@ -37,8 +37,12 @@
       <section class="bibtex" aria-label="BibTeX 展示">
         <div class="bibtex-head">
           <h2>BibTeX</h2>
-          <button id="copyBtn" type="button" disabled>复制</button>
+          <div class="bibtex-actions">
+            <button id="retryBibBtn" type="button" class="secondary-btn">循环获取BibTeX</button>
+            <button id="copyBtn" type="button" disabled>复制</button>
+          </div>
         </div>
+        <div id="retryBibStatus" class="retry-status" aria-live="polite"></div>
         <pre id="bibtexOutput">请先搜索并选择论文。</pre>
       </section>
     </main>

@@ -142,6 +142,11 @@ small {
   justify-content: space-between;
 }
 
+.bibtex-actions {
+  display: flex;
+  gap: 8px;
+}
+
 pre {
   margin: 12px 0 0;
   border: 1px solid var(--border);
@@ -160,6 +165,16 @@ pre {
 
 @media (max-width: 700px) {
   .search-row {
+    flex-direction: column;
+  }
+
+  .bibtex-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .bibtex-actions {
     flex-direction: column;
   }
 
