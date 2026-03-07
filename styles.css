@@ -6,6 +6,8 @@
   --border: #d1d5db;
   --primary: #0f766e;
   --primary-dark: #115e59;
+  --secondary: #d97706;
+  --secondary-dark: #b45309;
   --selected: #ecfeff;
   --danger: #991b1b;
 }
@@ -75,6 +77,14 @@ button:hover {
   background: var(--primary-dark);
 }
 
+.secondary-btn {
+  background: var(--secondary);
+}
+
+.secondary-btn:hover {
+  background: var(--secondary-dark);
+}
+
 button[disabled] {
   opacity: 0.55;
   cursor: not-allowed;
@@ -84,6 +94,13 @@ small {
   display: block;
   margin-top: 8px;
   color: var(--muted);
+}
+
+.retry-status {
+  min-height: 20px;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .result-list {

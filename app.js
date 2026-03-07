@@ -1,5 +1,7 @@
 const titleInput = document.getElementById("titleInput");
 const searchBtn = document.getElementById("searchBtn");
+const retryBtn = document.getElementById("retryBtn");
+const retryStatus = document.getElementById("retryStatus");
 const resultList = document.getElementById("resultList");
 const bibtexOutput = document.getElementById("bibtexOutput");
 const copyBtn = document.getElementById("copyBtn");
@@ -9,6 +11,30 @@ let selectedIndex = -1;
 let currentResults = [];
 
 const MAX_RESULTS = 20;
+const RETRY_INTERVAL_MS = 2000;
+
+let retryTimer = null;
+let retryAttempt = 0;
+let retryRunning = false;
+
+function setRetryStatus(text) {
+  retryStatus.textContent = text;
+}
+
+function updateRetryButton() {
+  retryBtn.textContent = retryRunning ? "停止循环" : "循环搜索";
+}
+
+function stopRetryLoop(message = "") {
+  if (retryTimer) {
+    clearTimeout(retryTimer);
+    retryTimer = null;
+  }
+  retryRunning = false;
+  retryAttempt = 0;
+  updateRetryButton();
+  setRetryStatus(message);
+}
 
 function normalizeText(text) {
   return (text || "")
@@ -101,7 +127,7 @@ async function searchByTitle() {
   const query = titleInput.value.trim();
   if (!query) {
     setStatus("请先输入论文标题。", true);
-    return;
+    return false;
   }
 
   setStatus("正在搜索候选论文...");
@@ -125,12 +151,53 @@ async function searchByTitle() {
 
     if (list.length > 0) {
       setStatus("已找到候选结果，请点击其中一篇以加载 BibTeX。", false);
+      return true;
     } else {
       setStatus("没有搜索到结果，请调整关键词。", true);
+      return false;
     }
   } catch (error) {
     setStatus(`搜索失败：${error.message}`, true);
+    return false;
   }
+}
+
+async function runRetrySearch() {
+  if (!retryRunning) {
+    return;
+  }
+
+  retryAttempt += 1;
+  setRetryStatus(`循环搜索中：第 ${retryAttempt} 次尝试，间隔 ${RETRY_INTERVAL_MS / 1000} 秒。`);
+
+  const success = await searchByTitle();
+  if (!retryRunning) {
+    return;
+  }
+
+  if (success) {
+    stopRetryLoop(`循环搜索已成功，在第 ${retryAttempt} 次尝试找到结果。`);
+    return;
+  }
+
+  retryTimer = setTimeout(runRetrySearch, RETRY_INTERVAL_MS);
+}
+
+function toggleRetryLoop() {
+  if (retryRunning) {
+    stopRetryLoop("循环搜索已停止。");
+    return;
+  }
+
+  if (!titleInput.value.trim()) {
+    setStatus("请先输入论文标题。", true);
+    return;
+  }
+
+  retryRunning = true;
+  retryAttempt = 0;
+  updateRetryButton();
+  runRetrySearch();
 }
 
 async function selectResult(index) {
@@ -182,9 +249,11 @@ async function copyBibtex() {
 }
 
 searchBtn.addEventListener("click", searchByTitle);
+retryBtn.addEventListener("click", toggleRetryLoop);
 titleInput.addEventListener("keydown", (event) => {
   if (event.key === "Enter") {
     searchByTitle();
   }
 });
 copyBtn.addEventListener("click", copyBibtex);
+updateRetryButton();

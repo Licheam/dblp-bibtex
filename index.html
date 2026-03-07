@@ -23,8 +23,10 @@
             autocomplete="off"
           />
           <button id="searchBtn" type="button">搜索</button>
+          <button id="retryBtn" type="button" class="secondary-btn">循环搜索</button>
         </div>
         <small>默认返回前 20 条候选，可在候选列表中选择目标论文。</small>
+        <div id="retryStatus" class="retry-status" aria-live="polite"></div>
       </section>
 
       <section class="results" aria-label="搜索结果">
