@@ -54,3 +54,7 @@ python3 -m http.server 8000
 
 - 搜索接口：`https://dblp.org/search/publ/api?q=<query>&h=20&format=json`
 - BibTeX 接口：`https://dblp.org/rec/<key>.bib`（或搜索结果中的 `url + .bib`）
+
+## 开源协议
+
+本项目采用 [MIT License](LICENSE) 许可协议。
