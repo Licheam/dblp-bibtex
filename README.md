@@ -1,3 +1,12 @@
+---
+title: DBLP BibTeX Quick Finder
+emoji: 📚
+colorFrom: green
+colorTo: blue
+sdk: docker
+pinned: false
+---
+
 # DBLP BibTeX 快速查询
 
 一个轻量网页工具：输入论文标题，调用 DBLP API 进行模糊匹配，点击结果后直接查看纯文本 BibTeX。
