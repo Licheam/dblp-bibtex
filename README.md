@@ -103,6 +103,7 @@ docker run --rm -p 8000:7860 dblp-bibtex:latest
 - 搜索接口：`https://dblp.org/search/publ/api?q=<query>&h=20&format=json`
 - BibTeX 接口：`https://dblp.org/rec/<key>.bib`（或搜索结果中的 `url + .bib`）
 - 本项目代理接口：`/api/search?q=<query>&h=20`、`/api/venue?q=<venue+year>` 和 `/api/bib?url=<bib_url>`
+- 会议/期刊查询采用两段式：先用 `search/venue/api` 做 venue 候选，再用 `search/publ/api` 拉取论文并过滤年份
 
 ## 开源协议
 

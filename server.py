@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parent
 HOST = "0.0.0.0"
 PORT = int(os.environ.get("PORT", "7860"))
 DBLP_SEARCH = "https://dblp.org/search/publ/api"
+DBLP_VENUE_SEARCH = "https://dblp.org/search/venue/api"
 USER_AGENT = "dblp-bibtex-tool/1.0"
 DBLP_PAGE_SIZE = 1000
 DBLP_MAX_VENUE_RESULTS = 5000
@@ -88,53 +89,11 @@ class AppHandler(SimpleHTTPRequestHandler):
             self.send_json({"error": "missing venue name"}, status=400)
             return
 
-        collected = []
-        seen_keys = set()
-        offset = 0
-        total = None
-        merged_query = f"{venue} {year}".strip()
-        venue_norm = venue.lower()
-
         try:
-            while len(collected) < DBLP_MAX_VENUE_RESULTS:
-                batch_size = min(DBLP_PAGE_SIZE, DBLP_MAX_VENUE_RESULTS - len(collected))
-                target = (
-                    f"{DBLP_SEARCH}?q={quote(merged_query)}&h={batch_size}&f={offset}&format=json"
-                )
-                payload = json.loads(self.fetch_text(target))
-                hits_obj = payload.get("result", {}).get("hits", {})
-                raw_hits = hits_obj.get("hit", [])
-                hits = raw_hits if isinstance(raw_hits, list) else [raw_hits] if raw_hits else []
-
-                if total is None:
-                    try:
-                        total = int(hits_obj.get("@total", len(hits)))
-                    except (TypeError, ValueError):
-                        total = len(hits)
-
-                if not hits:
-                    break
-
-                for hit in hits:
-                    info = hit.get("info", {})
-                    key = info.get("key") or info.get("url") or info.get("title")
-                    if key in seen_keys:
-                        continue
-
-                    item_year = str(info.get("year", "")).strip()
-                    item_venue = str(info.get("venue", "")).strip().lower()
-                    if year and item_year != year:
-                        continue
-                    if venue_norm and venue_norm not in item_venue:
-                        continue
-
-                    seen_keys.add(key)
-                    collected.append(hit)
-
-                offset += len(hits)
-                if offset >= total:
-                    break
-
+            # Phase 1: resolve venue candidates using official venue API.
+            venue_candidates = self.resolve_venue_candidates_safe(venue)
+            # Phase 2: query publications using the best venue term and year filter.
+            collected = self.collect_publications_for_venue(venue, year, venue_candidates)
             self.send_json(
                 {
                     "query": raw_query,
@@ -142,12 +101,93 @@ class AppHandler(SimpleHTTPRequestHandler):
                     "year": year,
                     "count": len(collected),
                     "hit": collected,
+                    "venue_candidates": venue_candidates[:5],
                 }
             )
         except (HTTPError, URLError, TimeoutError) as exc:
             self.send_json({"error": f"venue upstream failed: {exc}"}, status=502)
         except json.JSONDecodeError:
             self.send_json({"error": "venue response is not valid json"}, status=502)
+
+    def resolve_venue_candidates_safe(self, venue):
+        try:
+            return self.resolve_venue_candidates(venue)
+        except (HTTPError, URLError, TimeoutError, json.JSONDecodeError):
+            return []
+
+    def resolve_venue_candidates(self, venue):
+        target = f"{DBLP_VENUE_SEARCH}?q={quote(venue)}&h=10&format=json"
+        payload = json.loads(self.fetch_text(target))
+        hits_obj = payload.get("result", {}).get("hits", {})
+        raw_hits = hits_obj.get("hit", [])
+        hits = raw_hits if isinstance(raw_hits, list) else [raw_hits] if raw_hits else []
+        candidates = []
+        seen = set()
+        for hit in hits:
+            info = hit.get("info", {})
+            terms = [
+                str(info.get("venue", "")).strip(),
+                str(info.get("acronym", "")).strip(),
+                str(info.get("name", "")).strip(),
+                str(info.get("title", "")).strip(),
+            ]
+            for term in terms:
+                if term and term.lower() not in seen:
+                    seen.add(term.lower())
+                    candidates.append(term)
+        return candidates
+
+    def collect_publications_for_venue(self, venue, year, venue_candidates):
+        search_terms = [*venue_candidates, venue]
+        query_term = search_terms[0] if search_terms else venue
+        merged_query = f"{query_term} {year}".strip()
+        venue_norm = venue.lower()
+        candidate_norms = [v.lower() for v in search_terms if v]
+
+        collected = []
+        seen_keys = set()
+        offset = 0
+        total = None
+
+        while len(collected) < DBLP_MAX_VENUE_RESULTS:
+            batch_size = min(DBLP_PAGE_SIZE, DBLP_MAX_VENUE_RESULTS - len(collected))
+            target = f"{DBLP_SEARCH}?q={quote(merged_query)}&h={batch_size}&f={offset}&format=json"
+            payload = json.loads(self.fetch_text(target))
+            hits_obj = payload.get("result", {}).get("hits", {})
+            raw_hits = hits_obj.get("hit", [])
+            hits = raw_hits if isinstance(raw_hits, list) else [raw_hits] if raw_hits else []
+
+            if total is None:
+                try:
+                    total = int(hits_obj.get("@total", len(hits)))
+                except (TypeError, ValueError):
+                    total = len(hits)
+
+            if not hits:
+                break
+
+            for hit in hits:
+                info = hit.get("info", {})
+                key = info.get("key") or info.get("url") or info.get("title")
+                if key in seen_keys:
+                    continue
+
+                item_year = str(info.get("year", "")).strip()
+                item_venue = str(info.get("venue", "")).strip().lower()
+                if year and item_year != year:
+                    continue
+                if venue_norm and venue_norm not in item_venue:
+                    if not any(term in item_venue for term in candidate_norms):
+                        continue
+
+                seen_keys.add(key)
+                collected.append(hit)
+
+            offset += len(hits)
+            if offset >= total:
+                break
+
+        return collected
 
     def parse_venue_year(self, raw_query):
         parts = raw_query.rsplit(" ", 1)
