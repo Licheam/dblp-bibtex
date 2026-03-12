@@ -14,8 +14,10 @@ pinned: false
 ## 功能
 
 - 论文标题搜索（DBLP `search/publ/api`）
+- 会议/期刊检索（支持 `PLDI 2025` 这类输入）
 - 前端模糊排序（优先展示更接近的标题）
 - 可选循环搜索，失败后每 2 秒自动重试，直到拿到候选结果
+- 可选会议/期刊循环查询，失败后每 2 秒自动重试，直到拿到结果
 - 可选循环获取 BibTeX，失败后每 2 秒自动重试，直到成功
 - 点击候选结果，拉取对应 `.bib` 纯文本
 - 一键复制 BibTeX
@@ -77,9 +79,11 @@ docker run --rm -p 8000:7860 dblp-bibtex:latest
 1. 输入论文标题（例如 `Attention Is All You Need`）
 2. 点击“搜索”或按 Enter
 3. 如果 DBLP 最近不稳定，可以点击“循环搜索”，页面会每 2 秒重试一次，直到搜到结果或你手动停止
-4. 在候选列表中点击目标论文
-5. 如果 BibTeX 获取失败，可点击“循环获取BibTeX”，页面会每 2 秒重试一次，成功后自动停止
-6. 右侧查看纯文本 BibTeX，必要时点击“复制”
+4. 或者输入会议/期刊查询（例如 `PLDI 2025`），点击“查询会议/期刊”获取该会议/期刊论文列表
+5. 会议/期刊网络不稳定时可点击“循环查询”，页面会每 2 秒重试一次，直到有结果或你手动停止
+6. 在候选列表中点击目标论文
+7. 如果 BibTeX 获取失败，可点击“循环获取BibTeX”，页面会每 2 秒重试一次，成功后自动停止
+8. 右侧查看纯文本 BibTeX，必要时点击“复制”
 
 ## 常见问题
 
@@ -96,7 +100,7 @@ docker run --rm -p 8000:7860 dblp-bibtex:latest
 
 - 搜索接口：`https://dblp.org/search/publ/api?q=<query>&h=20&format=json`
 - BibTeX 接口：`https://dblp.org/rec/<key>.bib`（或搜索结果中的 `url + .bib`）
-- 本项目代理接口：`/api/search?q=<query>&h=20` 和 `/api/bib?url=<bib_url>`
+- 本项目代理接口：`/api/search?q=<query>&h=20`、`/api/venue?q=<venue+year>` 和 `/api/bib?url=<bib_url>`
 
 ## 开源协议
 

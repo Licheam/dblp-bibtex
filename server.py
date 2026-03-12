@@ -1,5 +1,6 @@
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+import re
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, quote, unquote, urlparse
 from urllib.request import Request, urlopen
@@ -12,6 +13,9 @@ HOST = "0.0.0.0"
 PORT = int(os.environ.get("PORT", "7860"))
 DBLP_SEARCH = "https://dblp.org/search/publ/api"
 USER_AGENT = "dblp-bibtex-tool/1.0"
+DBLP_PAGE_SIZE = 1000
+DBLP_MAX_VENUE_RESULTS = 5000
+YEAR_PATTERN = re.compile(r"(19\d{2}|20\d{2}|2100)$")
 
 
 class AppHandler(SimpleHTTPRequestHandler):
@@ -22,6 +26,9 @@ class AppHandler(SimpleHTTPRequestHandler):
         parsed = urlparse(self.path)
         if parsed.path == "/api/search":
             self.handle_search(parsed.query)
+            return
+        if parsed.path == "/api/venue":
+            self.handle_venue(parsed.query)
             return
         if parsed.path == "/api/bib":
             self.handle_bib(parsed.query)
@@ -68,6 +75,85 @@ class AppHandler(SimpleHTTPRequestHandler):
             self.wfile.write(payload.encode("utf-8"))
         except (HTTPError, URLError, TimeoutError) as exc:
             self.send_json({"error": f"bib upstream failed: {exc}"}, status=502)
+
+    def handle_venue(self, query_string):
+        params = parse_qs(query_string)
+        raw_query = params.get("q", [""])[0].strip()
+        if not raw_query:
+            self.send_json({"error": "missing query"}, status=400)
+            return
+
+        venue, year = self.parse_venue_year(raw_query)
+        if not venue:
+            self.send_json({"error": "missing venue name"}, status=400)
+            return
+
+        collected = []
+        seen_keys = set()
+        offset = 0
+        total = None
+        merged_query = f"{venue} {year}".strip()
+        venue_norm = venue.lower()
+
+        try:
+            while len(collected) < DBLP_MAX_VENUE_RESULTS:
+                batch_size = min(DBLP_PAGE_SIZE, DBLP_MAX_VENUE_RESULTS - len(collected))
+                target = (
+                    f"{DBLP_SEARCH}?q={quote(merged_query)}&h={batch_size}&f={offset}&format=json"
+                )
+                payload = json.loads(self.fetch_text(target))
+                hits_obj = payload.get("result", {}).get("hits", {})
+                raw_hits = hits_obj.get("hit", [])
+                hits = raw_hits if isinstance(raw_hits, list) else [raw_hits] if raw_hits else []
+
+                if total is None:
+                    try:
+                        total = int(hits_obj.get("@total", len(hits)))
+                    except (TypeError, ValueError):
+                        total = len(hits)
+
+                if not hits:
+                    break
+
+                for hit in hits:
+                    info = hit.get("info", {})
+                    key = info.get("key") or info.get("url") or info.get("title")
+                    if key in seen_keys:
+                        continue
+
+                    item_year = str(info.get("year", "")).strip()
+                    item_venue = str(info.get("venue", "")).strip().lower()
+                    if year and item_year != year:
+                        continue
+                    if venue_norm and venue_norm not in item_venue:
+                        continue
+
+                    seen_keys.add(key)
+                    collected.append(hit)
+
+                offset += len(hits)
+                if offset >= total:
+                    break
+
+            self.send_json(
+                {
+                    "query": raw_query,
+                    "venue": venue,
+                    "year": year,
+                    "count": len(collected),
+                    "hit": collected,
+                }
+            )
+        except (HTTPError, URLError, TimeoutError) as exc:
+            self.send_json({"error": f"venue upstream failed: {exc}"}, status=502)
+        except json.JSONDecodeError:
+            self.send_json({"error": "venue response is not valid json"}, status=502)
+
+    def parse_venue_year(self, raw_query):
+        parts = raw_query.rsplit(" ", 1)
+        if len(parts) == 2 and YEAR_PATTERN.fullmatch(parts[1].strip()):
+            return parts[0].strip(), parts[1].strip()
+        return raw_query.strip(), ""
 
     def fetch_text(self, url):
         req = Request(url, headers={"User-Agent": USER_AGENT})

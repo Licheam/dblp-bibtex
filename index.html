@@ -29,6 +29,22 @@
         <div id="retryStatus" class="retry-status" aria-live="polite"></div>
       </section>
 
+      <section class="search-panel" aria-label="会议期刊搜索面板">
+        <label for="venueInput">会议/期刊（可带年份）</label>
+        <div class="search-row">
+          <input
+            id="venueInput"
+            type="text"
+            placeholder="例如：PLDI 2025 / POPL 2024 / VLDB 2023"
+            autocomplete="off"
+          />
+          <button id="venueSearchBtn" type="button">查询会议/期刊</button>
+          <button id="retryVenueBtn" type="button" class="secondary-btn">循环查询</button>
+        </div>
+        <small>将尝试输出该会议/期刊在对应年份的所有论文。</small>
+        <div id="venueStatus" class="retry-status" aria-live="polite"></div>
+      </section>
+
       <section class="results" aria-label="搜索结果">
         <h2>候选论文</h2>
         <ul id="resultList" class="result-list"></ul>

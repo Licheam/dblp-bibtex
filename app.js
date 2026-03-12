@@ -2,6 +2,10 @@ const titleInput = document.getElementById("titleInput");
 const searchBtn = document.getElementById("searchBtn");
 const retryBtn = document.getElementById("retryBtn");
 const retryStatus = document.getElementById("retryStatus");
+const venueInput = document.getElementById("venueInput");
+const venueSearchBtn = document.getElementById("venueSearchBtn");
+const retryVenueBtn = document.getElementById("retryVenueBtn");
+const venueStatus = document.getElementById("venueStatus");
 const retryBibBtn = document.getElementById("retryBibBtn");
 const retryBibStatus = document.getElementById("retryBibStatus");
 const resultList = document.getElementById("resultList");
@@ -19,6 +23,9 @@ const BIB_RETRY_INTERVAL_MS = 2000;
 let retryTimer = null;
 let retryAttempt = 0;
 let retryRunning = false;
+let venueRetryTimer = null;
+let venueRetryAttempt = 0;
+let venueRetryRunning = false;
 let bibRetryTimer = null;
 let bibRetryAttempt = 0;
 let bibRetryRunning = false;
@@ -31,12 +38,20 @@ function setRetryBibStatus(text) {
   retryBibStatus.textContent = text;
 }
 
+function setVenueStatus(text) {
+  venueStatus.textContent = text;
+}
+
 function updateRetryButton() {
   retryBtn.textContent = retryRunning ? "停止循环" : "循环搜索";
 }
 
 function updateRetryBibButton() {
   retryBibBtn.textContent = bibRetryRunning ? "停止获取BibTeX" : "循环获取BibTeX";
+}
+
+function updateRetryVenueButton() {
+  retryVenueBtn.textContent = venueRetryRunning ? "停止循环查询" : "循环查询";
 }
 
 function stopRetryLoop(message = "") {
@@ -48,6 +63,17 @@ function stopRetryLoop(message = "") {
   retryAttempt = 0;
   updateRetryButton();
   setRetryStatus(message);
+}
+
+function stopVenueRetryLoop(message = "") {
+  if (venueRetryTimer) {
+    clearTimeout(venueRetryTimer);
+    venueRetryTimer = null;
+  }
+  venueRetryRunning = false;
+  venueRetryAttempt = 0;
+  updateRetryVenueButton();
+  setVenueStatus(message);
 }
 
 function stopBibRetryLoop(message = "") {
@@ -101,16 +127,20 @@ function getBibtexUrl(hitInfo) {
   return null;
 }
 
-function renderResults(results, query) {
+function renderResults(results, query, sortBySimilarity = true) {
   resultList.innerHTML = "";
   selectedIndex = -1;
-  currentResults = results
-    .map((item) => ({
-      item,
-      score: similarityScore(query, item.info?.title || ""),
-    }))
-    .sort((a, b) => b.score - a.score)
-    .map((r) => r.item);
+  if (sortBySimilarity) {
+    currentResults = results
+      .map((item) => ({
+        item,
+        score: similarityScore(query, item.info?.title || ""),
+      }))
+      .sort((a, b) => b.score - a.score)
+      .map((r) => r.item);
+  } else {
+    currentResults = results;
+  }
 
   if (currentResults.length === 0) {
     resultList.innerHTML = "<li>没有找到候选结果。</li>";
@@ -156,6 +186,8 @@ async function searchByTitle() {
   }
 
   stopBibRetryLoop("");
+  stopVenueRetryLoop("");
+  setVenueStatus("");
   setStatus("正在搜索候选论文...");
   copyBtn.disabled = true;
   currentBibtex = "";
@@ -186,6 +218,137 @@ async function searchByTitle() {
     setStatus(`搜索失败：${error.message}`, true);
     return false;
   }
+}
+
+async function searchByVenue() {
+  const query = venueInput.value.trim();
+  if (!query) {
+    setVenueStatus("请先输入会议/期刊名称（可带年份）。");
+    setStatus("请先输入会议/期刊名称。", true);
+    return false;
+  }
+
+  stopVenueRetryLoop("");
+  setRetryStatus("");
+  stopRetryLoop("");
+  stopBibRetryLoop("");
+  setStatus("正在查询会议/期刊论文列表...");
+  setVenueStatus("正在拉取结果，会议/期刊查询可能需要更久。");
+  copyBtn.disabled = true;
+  currentBibtex = "";
+
+  const url = `/api/venue?q=${encodeURIComponent(query)}`;
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      const err = await response.json().catch(() => null);
+      throw new Error(err?.error || `HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    const list = Array.isArray(data?.hit) ? data.hit : [];
+    renderResults(list, "", false);
+
+    if (list.length > 0) {
+      const yearText = data.year ? ` ${data.year}` : "";
+      setVenueStatus(`已获取 ${list.length} 篇：${data.venue}${yearText}`);
+      setStatus("会议/期刊查询完成，请点击某篇查看 BibTeX。", false);
+      return true;
+    }
+
+    setVenueStatus("没有匹配结果，请尝试更精确的会议/期刊名称或年份。");
+    setStatus("会议/期刊查询无结果。", true);
+    return false;
+  } catch (error) {
+    setVenueStatus(`查询失败：${error.message}`);
+    setStatus(`会议/期刊查询失败：${error.message}`, true);
+    return false;
+  }
+}
+
+async function runVenueRetrySearch() {
+  if (!venueRetryRunning) {
+    return;
+  }
+
+  const query = venueInput.value.trim();
+  if (!query) {
+    stopVenueRetryLoop("请先输入会议/期刊名称（可带年份）。");
+    return;
+  }
+
+  venueRetryAttempt += 1;
+  setVenueStatus(`循环查询中：第 ${venueRetryAttempt} 次尝试，间隔 ${RETRY_INTERVAL_MS / 1000} 秒。`);
+
+  const success = await searchByVenueLoopAttempt();
+  if (!venueRetryRunning) {
+    return;
+  }
+
+  if (success) {
+    stopVenueRetryLoop(`循环查询已成功，在第 ${venueRetryAttempt} 次尝试拿到结果。`);
+    return;
+  }
+
+  venueRetryTimer = setTimeout(runVenueRetrySearch, RETRY_INTERVAL_MS);
+}
+
+async function searchByVenueLoopAttempt() {
+  const query = venueInput.value.trim();
+  if (!query) {
+    return false;
+  }
+
+  stopRetryLoop("");
+  stopBibRetryLoop("");
+  setStatus("正在查询会议/期刊论文列表...");
+  copyBtn.disabled = true;
+  currentBibtex = "";
+
+  const url = `/api/venue?q=${encodeURIComponent(query)}`;
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      const err = await response.json().catch(() => null);
+      throw new Error(err?.error || `HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    const list = Array.isArray(data?.hit) ? data.hit : [];
+    renderResults(list, "", false);
+
+    if (list.length > 0) {
+      setStatus("会议/期刊查询完成，请点击某篇查看 BibTeX。", false);
+      return true;
+    }
+
+    setStatus("会议/期刊查询无结果。", true);
+    return false;
+  } catch (error) {
+    setStatus(`会议/期刊查询失败：${error.message}`, true);
+    return false;
+  }
+}
+
+function toggleVenueRetryLoop() {
+  if (venueRetryRunning) {
+    stopVenueRetryLoop("循环查询已停止。");
+    return;
+  }
+
+  if (!venueInput.value.trim()) {
+    setVenueStatus("请先输入会议/期刊名称（可带年份）。");
+    setStatus("请先输入会议/期刊名称。", true);
+    return;
+  }
+
+  setRetryStatus("");
+  stopRetryLoop("");
+  stopBibRetryLoop("");
+  venueRetryRunning = true;
+  venueRetryAttempt = 0;
+  updateRetryVenueButton();
+  runVenueRetrySearch();
 }
 
 async function runRetrySearch() {
@@ -326,12 +489,20 @@ async function copyBibtex() {
 
 searchBtn.addEventListener("click", searchByTitle);
 retryBtn.addEventListener("click", toggleRetryLoop);
+venueSearchBtn.addEventListener("click", searchByVenue);
+retryVenueBtn.addEventListener("click", toggleVenueRetryLoop);
 retryBibBtn.addEventListener("click", toggleBibRetryLoop);
 titleInput.addEventListener("keydown", (event) => {
   if (event.key === "Enter") {
     searchByTitle();
   }
 });
+venueInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    searchByVenue();
+  }
+});
 copyBtn.addEventListener("click", copyBibtex);
 updateRetryButton();
+updateRetryVenueButton();
 updateRetryBibButton();
