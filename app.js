@@ -7,6 +7,7 @@ const venueSearchBtn = document.getElementById("venueSearchBtn");
 const retryVenueBtn = document.getElementById("retryVenueBtn");
 const venueStatus = document.getElementById("venueStatus");
 const retryBibBtn = document.getElementById("retryBibBtn");
+const mergeBibBtn = document.getElementById("mergeBibBtn");
 const retryBibStatus = document.getElementById("retryBibStatus");
 const resultList = document.getElementById("resultList");
 const bibtexOutput = document.getElementById("bibtexOutput");
@@ -19,6 +20,7 @@ let currentResults = [];
 const MAX_RESULTS = 20;
 const RETRY_INTERVAL_MS = 2000;
 const BIB_RETRY_INTERVAL_MS = 2000;
+const BIB_BULK_DELAY_MS = 120;
 
 let retryTimer = null;
 let retryAttempt = 0;
@@ -125,6 +127,12 @@ function getBibtexUrl(hitInfo) {
   if (hitInfo.url) return `${hitInfo.url}.bib`;
   if (hitInfo.key) return `https://dblp.org/rec/${hitInfo.key}.bib`;
   return null;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
 function renderResults(results, query, sortBySimilarity = true) {
@@ -408,23 +416,31 @@ async function fetchBibtexForInfo(info) {
   }
 
   setStatus("正在获取 BibTeX...");
+  const result = await requestBibtexText(bibtexUrl);
+  if (!result.ok) {
+    setStatus(`获取 BibTeX 失败：${result.error}`, true);
+    copyBtn.disabled = true;
+    return false;
+  }
 
+  currentBibtex = result.text;
+  setStatus(currentBibtex || "返回为空。", false);
+  copyBtn.disabled = !currentBibtex;
+  return Boolean(currentBibtex);
+}
+
+async function requestBibtexText(bibtexUrl) {
   try {
     const response = await fetch(`/api/bib?url=${encodeURIComponent(bibtexUrl)}`);
     if (!response.ok) {
       const err = await response.json().catch(() => null);
-      throw new Error(err?.error || `HTTP ${response.status}`);
+      return { ok: false, text: "", error: err?.error || `HTTP ${response.status}` };
     }
 
-    const text = await response.text();
-    currentBibtex = text.trim();
-    setStatus(currentBibtex || "返回为空。", false);
-    copyBtn.disabled = !currentBibtex;
-    return Boolean(currentBibtex);
+    const text = (await response.text()).trim();
+    return { ok: true, text, error: "" };
   } catch (error) {
-    setStatus(`获取 BibTeX 失败：${error.message}`, true);
-    copyBtn.disabled = true;
-    return false;
+    return { ok: false, text: "", error: error.message };
   }
 }
 
@@ -472,6 +488,52 @@ function toggleBibRetryLoop() {
   runBibRetryFetch();
 }
 
+async function mergeAllBibtex() {
+  if (!currentResults.length) {
+    setStatus("当前没有可合并的论文结果。请先搜索。", true);
+    return;
+  }
+
+  stopBibRetryLoop("");
+  mergeBibBtn.disabled = true;
+  copyBtn.disabled = true;
+  setStatus("开始批量获取并合并 BibTeX...");
+
+  const mergedEntries = [];
+  let failed = 0;
+  for (let index = 0; index < currentResults.length; index += 1) {
+    const info = currentResults[index]?.info;
+    const bibtexUrl = getBibtexUrl(info);
+    setRetryBibStatus(`批量获取中：${index + 1}/${currentResults.length}`);
+
+    if (!bibtexUrl) {
+      failed += 1;
+      continue;
+    }
+
+    const result = await requestBibtexText(bibtexUrl);
+    if (result.ok && result.text) {
+      mergedEntries.push(result.text);
+    } else {
+      failed += 1;
+    }
+
+    await sleep(BIB_BULK_DELAY_MS);
+  }
+
+  mergeBibBtn.disabled = false;
+  if (!mergedEntries.length) {
+    setRetryBibStatus(`批量获取完成：成功 0，失败 ${failed}`);
+    setStatus("批量获取失败，未拿到可用 BibTeX。", true);
+    return;
+  }
+
+  currentBibtex = mergedEntries.join("\n\n");
+  setStatus(currentBibtex, false);
+  copyBtn.disabled = false;
+  setRetryBibStatus(`批量获取完成：成功 ${mergedEntries.length}，失败 ${failed}`);
+}
+
 async function copyBibtex() {
   if (!currentBibtex) return;
 
@@ -492,6 +554,7 @@ retryBtn.addEventListener("click", toggleRetryLoop);
 venueSearchBtn.addEventListener("click", searchByVenue);
 retryVenueBtn.addEventListener("click", toggleVenueRetryLoop);
 retryBibBtn.addEventListener("click", toggleBibRetryLoop);
+mergeBibBtn.addEventListener("click", mergeAllBibtex);
 titleInput.addEventListener("keydown", (event) => {
   if (event.key === "Enter") {
     searchByTitle();
