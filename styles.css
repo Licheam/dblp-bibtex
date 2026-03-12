@@ -39,6 +39,29 @@ header p {
   color: var(--muted);
 }
 
+.github-ribbon {
+  position: fixed;
+  top: 22px;
+  right: -58px;
+  transform: rotate(45deg);
+  background: #111827;
+  color: #fff;
+  padding: 10px 64px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-decoration: none;
+  text-transform: uppercase;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  z-index: 20;
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.github-ribbon:hover {
+  background: #0f766e;
+  box-shadow: 0 10px 28px rgba(15, 118, 110, 0.35);
+}
+
 .search-panel,
 .results,
 .bibtex {
@@ -164,6 +187,13 @@ pre {
 }
 
 @media (max-width: 700px) {
+  .github-ribbon {
+    top: 16px;
+    right: -68px;
+    padding: 8px 64px;
+    font-size: 11px;
+  }
+
   .search-row {
     flex-direction: column;
   }
